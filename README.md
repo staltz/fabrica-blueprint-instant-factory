@@ -1,6 +1,6 @@
 # Instant Factory blueprint
 
-> **This is [Mikola Lysenko](https://github.com/mikolalysenko)'s [Instant Software Factory](https://github.com/mikolalysenko/instant-factory), repackaged as a [Fabrica](https://github.com/staltz/fabrica) blueprint.** The ideas are his. This repo only changes how they're delivered.
+> **This is [Mikola Lysenko](https://github.com/mikolalysenko)'s [Instant Software Factory](https://github.com/mikolalysenko/instant-factory), repackaged as a [Fabrica](https://github.com/staltz/fabrica) blueprint.** This repo only changes how they're delivered.
 
 Mikola's Instant Software Factory is one prompt that turns a GitHub repo into a software factory: a few scheduled agents that keep improving a project, each with one standing objective, coordinating through GitHub, behind a stop control and human approval. You paste his prompt into Claude Code, and it sets everything up as Claude Code routines.
 
@@ -8,9 +8,37 @@ This blueprint keeps his roles, rules and setup procedure, and has [Fabrica](htt
 
 **If you only use Claude Code and don't use Fabrica, use [the original](https://github.com/mikolalysenko/instant-factory).** It's simpler, and it's the real thing.
 
+## Using it
+
+The agents run on a schedule, so they need a **cloud factory**. In a [home repo](https://github.com/staltz/fabrica/blob/main/docs/home-repos.md):
+
+```yaml
+# factories/instant.yaml
+blueprint: { git: github.com/staltz/fabrica-blueprint-instant-factory, ref: master }
+server: https://fabrica.example.com
+runtimes: [claude-code-cloud]
+routines: ["*"]
+targets: [github.com/you/your-app]
+```
+
+Then `fabrica plan` and `fabrica apply`. On Claude routines, apply writes a handoff for each routine. When the factory is created, it also writes one for the `setup` session: you start it as a Claude Code session on the web, and talk to it.
+
+**Nothing does any work until setup is done.** Fabrica creates the routines before setup runs, but each of them stops on its own while the repo has no charter on its default branch or no readable stop control. Setup:
+
+1. inspects your repo, CI, branch protection, git history and GitHub access,
+2. asks you, once, only for what it couldn't find: budget, approvers, the routines' GitHub identity, QA areas, and where the stop control lives,
+3. creates the stop control (set to stopped), branch protection, labels and the ledger, each after you say yes,
+4. opens a setup pull request with your repo's charter in `.agents/skills/factory-charter/SKILL.md`, and a CI workflow if you had none,
+5. proves the controls with your help: stopped runs write nothing, every role works in acceptance, the reviewer refuses a stale commit, and the merge gates block the setup pull request,
+6. reports what changed, the evidence, the gaps and the shutdown delay.
+
+Production work starts only after you merge the setup pull request and set the stop control to `running`.
+
+You need what Mikola's version needs: a GitHub repo with Actions and enforceable branch protection (any public repo; a private one needs GitHub Pro, Team or Enterprise), and a cloud runtime with schedules. **Budget for both agent usage and Actions minutes.** Start modest, read the manager's weekly report, and raise capacity only when CI and your reviewers keep up.
+
 ## Credits
 
-Everything that makes this factory work comes from Mikola Lysenko's [instant-factory](https://github.com/mikolalysenko/instant-factory) (adapted from commit [`d897f7d`](https://github.com/mikolalysenko/instant-factory/tree/d897f7d365fec6b7c876b23bbd4aa4e74b3b3601), October 2026). That includes:
+Everything that makes this factory work comes from Mikola Lysenko's [instant-factory](https://github.com/mikolalysenko/instant-factory). That includes:
 
 - **the eight roles** and their standing objectives (QA, Performance, CI, Architecture, Implementation, PR review, Merge, Manager),
 - **GitHub as the shared state**: issues for evidence, pull requests for changes, and a record of ownership and handoffs that the next run can pick up,
@@ -39,22 +67,6 @@ Each routine is a scheduled session with one standing objective. The schedules (
 
 There's also a **`setup`** init routine. Fabrica runs it once, when it first creates the factory.
 
-## How it fits Fabrica
-
-Mikola's version is built around Claude Code routines. Some parts of it are things Fabrica already does, and some needed a different shape here:
-
-| In the original | In this blueprint |
-|---|---|
-| You paste a prompt, and the setup agent follows [`BOOTSTRAP.md`](https://github.com/mikolalysenko/instant-factory/blob/main/BOOTSTRAP.md) | The `setup` init routine follows the `instant-factory-setup` skill, which is that bootstrap adapted |
-| The manager creates the routines it manages with `create_trigger`, and configures them | `fabrica apply` creates the routines. No agent can create, change or turn off a routine |
-| The manager adjusts schedules and models | The schedules and models live in the routine files. The manager's **capacity plan** in the ledger pauses roles and sets daily limits below those schedules, and it recommends model or schedule changes for a person to make |
-| Agent instructions are kept in the product repo | The process is served live from this blueprint. The product repo keeps only its facts (stop control, approvers, budget, QA areas, validation commands) in a `factory-charter` skill, which this blueprint `expects:` |
-| Test runs point each routine at the setup branch | The stop control has an `acceptance` state. In it, routines only run their acceptance checks, and read the charter from the setup pull request |
-| Writes needed to turn automation off are allowed while stopped | Agents can't turn routines off here, so a stopped agent makes no writes at all. People turn routines off in the runtime, or with `fabrica destroy` |
-| Each role gets only the tools it needs | Each routine gets only the GitHub connector, and lists its allowed side effects. Limits on single tools are still a runtime setting |
-
-Everything else, like the merge gates, the role markers and the untrusted-input rule, is in the `factory-ground-rules` skill that every routine loads first.
-
 ## What's in it
 
 ```text
@@ -67,34 +79,6 @@ skills/factory-ground-rules/                   the rules every agent follows on 
 skills/instant-factory-setup/                  the setup procedure, and the charter template
 skills/factory-charter/                        a fail-closed fallback for repos with no charter
 ```
-
-## Using it
-
-These routines run on a schedule, so they need a **cloud factory**. In a [home repo](https://github.com/staltz/fabrica/blob/main/docs/home-repos.md):
-
-```yaml
-# factories/instant.yaml
-blueprint: { git: github.com/staltz/fabrica-blueprint-instant-factory, ref: master }
-server: https://fabrica.example.com
-runtimes: [claude-code-cloud]
-routines: ["*"]
-targets: [github.com/you/your-app]
-```
-
-Then `fabrica plan` and `fabrica apply`. On Claude routines, apply writes a handoff for each routine. When the factory is created, it also writes one for the `setup` session: you start it as a Claude Code session on the web, and talk to it.
-
-**Nothing does any work until setup is done.** Fabrica creates the routines before setup runs, but each of them stops on its own while the repo has no charter on its default branch or no readable stop control. Setup:
-
-1. inspects your repo, CI, branch protection, git history and GitHub access,
-2. asks you, once, only for what it couldn't find: budget, approvers, the routines' GitHub identity, QA areas, and where the stop control lives,
-3. creates the stop control (set to stopped), branch protection, labels and the ledger, each after you say yes,
-4. opens a setup pull request with your repo's charter in `.agents/skills/factory-charter/SKILL.md`, and a CI workflow if you had none,
-5. proves the controls with your help: stopped runs write nothing, every role works in acceptance, the reviewer refuses a stale commit, and the merge gates block the setup pull request,
-6. reports what changed, the evidence, the gaps and the shutdown delay.
-
-Production work starts only after you merge the setup pull request and set the stop control to `running`.
-
-You need what Mikola's version needs: a GitHub repo with Actions and enforceable branch protection (any public repo; a private one needs GitHub Pro, Team or Enterprise), and a cloud runtime with schedules. **Budget for both agent usage and Actions minutes.** Start modest, read the manager's weekly report, and raise capacity only when CI and your reviewers keep up.
 
 ## Stopping it
 
