@@ -1,0 +1,14 @@
+# The manifest of this Fabrica blueprint. The full format is described at
+# https://github.com/staltz/fabrica/blob/main/docs/blueprints.md
+#
+# Adapted from Mikola Lysenko's Instant Software Factory:
+# https://github.com/mikolalysenko/instant-factory
+
+description: Mikola Lysenko's Instant Software Factory as a Fabrica blueprint, with eight scheduled agents that keep improving one repo, behind a stop control and human approval
+
+# Each product repo writes down its own facts (stop control, approvers,
+# budget, QA areas, validation commands) in a factory-charter skill. The
+# setup init routine writes it in the setup pull request. The blueprint's
+# own factory-charter is a fail-closed default: without a charter, no agent
+# does any work.
+expects: [factory-charter]

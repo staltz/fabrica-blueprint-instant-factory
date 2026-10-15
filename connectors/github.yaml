@@ -1,0 +1,13 @@
+# GitHub, through the runtime's built-in integration.
+#
+# Cloud runtimes (Claude, Cursor, Codex) have GitHub built in. Local tools
+# don't, so for them Fabrica registers the MCP server under fallback:
+# instead. The token is read from the GITHUB_TOKEN secret; it never goes in
+# this file.
+kind: native
+description: GitHub, for reading pull requests and issues and posting comments
+fallback:
+  url: https://api.githubcopilot.com/mcp/
+  transport: http
+  auth: bearer
+  secret: GITHUB_TOKEN
